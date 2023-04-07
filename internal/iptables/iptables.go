@@ -45,19 +45,20 @@ var (
 
 // FirewallConfiguration specifies how to configure a pod's iptables.
 type FirewallConfiguration struct {
-	Mode                   string
-	PortsToRedirectInbound []int
-	InboundPortsToIgnore   []string
-	OutboundPortsToIgnore  []string
-	SubnetsToIgnore        []string
-	ProxyInboundPort       int
-	ProxyOutgoingPort      int
-	ProxyUID               int
-	SimulateOnly           bool
-	NetNs                  string
-	UseWaitFlag            bool
-	BinPath                string
-	SaveBinPath            string
+	Mode                    string
+	PortsToRedirectInbound  []int
+	InboundPortsToIgnore    []string
+	OutboundPortsToIgnore   []string
+	SubnetsToIgnore         []string
+	SubnetsToIgnoreOutbound []string
+	ProxyInboundPort        int
+	ProxyOutgoingPort       int
+	ProxyUID                int
+	SimulateOnly            bool
+	NetNs                   string
+	UseWaitFlag             bool
+	BinPath                 string
+	SaveBinPath             string
 }
 
 // ConfigureFirewall configures a pod's internal iptables to redirect all desired traffic through the proxy, allowing for
@@ -147,6 +148,7 @@ func (fc FirewallConfiguration) addIncomingTrafficRules(existingRules []byte, co
 	commands = fc.addRulesForIgnoredPorts(fc.InboundPortsToIgnore, redirectChainName, commands)
 	commands = fc.addRulesForIgnoredSubnets(redirectChainName, commands)
 	commands = fc.addRulesForInboundPortRedirect(redirectChainName, commands)
+	commands = fc.addRulesForIgnoredSubnetsOutbound(redirectChainName, commands)
 
 	if preroutingRuleRegex.Find(existingRules) == nil {
 		// Redirect all remaining inbound traffic to the proxy.
@@ -194,6 +196,13 @@ func (fc FirewallConfiguration) addRulesForIgnoredPorts(portsToIgnore []string, 
 func (fc FirewallConfiguration) addRulesForIgnoredSubnets(chainName string, commands []*exec.Cmd) []*exec.Cmd {
 	for _, subnet := range fc.SubnetsToIgnore {
 		commands = append(commands, fc.makeIgnoreSubnet(chainName, subnet, fmt.Sprintf("ignore-subnet-%s", subnet)))
+	}
+	return commands
+}
+
+func (fc FirewallConfiguration) addRulesForIgnoredSubnetsOutbound(chainName string, commands []*exec.Cmd) []*exec.Cmd {
+	for _, subnet := range fc.SubnetsToIgnoreOutbound {
+		commands = append(commands, fc.makeIgnoreSubnetOutbound(chainName, subnet, fmt.Sprintf("ignore-subnet-outbound-%s", subnet)))
 	}
 	return commands
 }
@@ -295,6 +304,17 @@ func (fc FirewallConfiguration) makeIgnorePorts(chainName string, destinations [
 		"--match", "multiport",
 		"--dports", strings.Join(destinations, ","),
 		"-j", "RETURN",
+		"-m", "comment",
+		"--comment", formatComment(comment))
+}
+
+func (fc FirewallConfiguration) makeIgnoreSubnetOutbound(chainName string, subnet string, comment string) *exec.Cmd {
+	return exec.Command(fc.BinPath,
+		"-t", "nat",
+		"-A", chainName,
+		"-p", "all",
+		"-j", "RETURN",
+		"-d", subnet,
 		"-m", "comment",
 		"--comment", formatComment(comment))
 }

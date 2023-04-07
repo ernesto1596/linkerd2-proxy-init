@@ -335,3 +335,57 @@ spec:
   volumes:
   - emptyDir: {}
     name: linkerd-proxy-init-xtables-lock
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-ignores-subnets-outbound
+  namespace: proxy-init-test
+  labels:
+    app: pod-ignores-subnets-outbound
+spec:
+  containers:
+  - name: proxy-stub
+    image: test.l5d.io/linkerd/iptables-tester:test
+    imagePullPolicy: Never
+    env:
+    - name: PORT
+      value: "8080"
+    - name: AM_I_THE_PROXY
+      value: "yes"
+    ports:
+    - name: http
+      containerPort: 8080
+    securityContext:
+      privileged: false
+      runAsUser: 2102
+  - name: other-container
+    image: test.l5d.io/linkerd/iptables-tester:test
+    imagePullPolicy: Never
+    env:
+    - name: PORT
+      value: "9090"
+    ports:
+    - name: http
+      containerPort: 9090
+  initContainers:
+  - name: linkerd-init
+    image: test.l5d.io/linkerd/proxy-init:test
+    imagePullPolicy: Never
+    args: ["-p", "8080",  "-o", "8080", "-u", "2102", "--subnets-to-ignore-outbound", "0.0.0.0/0"]
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        add:
+        - NET_ADMIN
+        - NET_RAW
+      privileged: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: false
+      runAsUser: 0
+    volumeMounts:
+    - mountPath: /run
+      name: linkerd-proxy-init-xtables-lock
+  volumes:
+  - emptyDir: {}
+    name: linkerd-proxy-init-xtables-lock

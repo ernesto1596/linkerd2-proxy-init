@@ -43,15 +43,16 @@ import (
 
 // ProxyInit is the configuration for the proxy-init binary
 type ProxyInit struct {
-	IncomingProxyPort     int      `json:"incoming-proxy-port"`
-	OutgoingProxyPort     int      `json:"outgoing-proxy-port"`
-	ProxyUID              int      `json:"proxy-uid"`
-	PortsToRedirect       []int    `json:"ports-to-redirect"`
-	InboundPortsToIgnore  []string `json:"inbound-ports-to-ignore"`
-	OutboundPortsToIgnore []string `json:"outbound-ports-to-ignore"`
-	SubnetsToIgnore       []string `json:"subnets-to-ignore"`
-	Simulate              bool     `json:"simulate"`
-	UseWaitFlag           bool     `json:"use-wait-flag"`
+	IncomingProxyPort       int      `json:"incoming-proxy-port"`
+	OutgoingProxyPort       int      `json:"outgoing-proxy-port"`
+	ProxyUID                int      `json:"proxy-uid"`
+	PortsToRedirect         []int    `json:"ports-to-redirect"`
+	InboundPortsToIgnore    []string `json:"inbound-ports-to-ignore"`
+	OutboundPortsToIgnore   []string `json:"outbound-ports-to-ignore"`
+	SubnetsToIgnore         []string `json:"subnets-to-ignore"`
+	SubnetsToIgnoreOutbound []string `json:"subnets-to-ignore-outbound"`
+	Simulate                bool     `json:"simulate"`
+	UseWaitFlag             bool     `json:"use-wait-flag"`
 }
 
 // Kubernetes a K8s specific struct to hold config
@@ -209,18 +210,19 @@ func cmdAdd(args *skel.CmdArgs) error {
 		if containsLinkerdProxy && !containsInitContainer {
 			logEntry.Debugf("linkerd-cni: setting up iptables firewall for %s/%s", namespace, pod)
 			options := cmd.RootOptions{
-				IncomingProxyPort:     conf.ProxyInit.IncomingProxyPort,
-				OutgoingProxyPort:     conf.ProxyInit.OutgoingProxyPort,
-				ProxyUserID:           conf.ProxyInit.ProxyUID,
-				PortsToRedirect:       conf.ProxyInit.PortsToRedirect,
-				InboundPortsToIgnore:  conf.ProxyInit.InboundPortsToIgnore,
-				OutboundPortsToIgnore: conf.ProxyInit.OutboundPortsToIgnore,
-				SubnetsToIgnore:       conf.ProxyInit.SubnetsToIgnore,
-				SimulateOnly:          conf.ProxyInit.Simulate,
-				NetNs:                 args.Netns,
-				UseWaitFlag:           conf.ProxyInit.UseWaitFlag,
-				FirewallBinPath:       "iptables",
-				FirewallSaveBinPath:   "iptables-save",
+				IncomingProxyPort:       conf.ProxyInit.IncomingProxyPort,
+				OutgoingProxyPort:       conf.ProxyInit.OutgoingProxyPort,
+				ProxyUserID:             conf.ProxyInit.ProxyUID,
+				PortsToRedirect:         conf.ProxyInit.PortsToRedirect,
+				InboundPortsToIgnore:    conf.ProxyInit.InboundPortsToIgnore,
+				OutboundPortsToIgnore:   conf.ProxyInit.OutboundPortsToIgnore,
+				SubnetsToIgnore:         conf.ProxyInit.SubnetsToIgnore,
+				SubnetsToIgnoreOutbound: conf.ProxyInit.SubnetsToIgnoreOutbound,
+				SimulateOnly:            conf.ProxyInit.Simulate,
+				NetNs:                   args.Netns,
+				UseWaitFlag:             conf.ProxyInit.UseWaitFlag,
+				FirewallBinPath:         "iptables",
+				FirewallSaveBinPath:     "iptables-save",
 			}
 
 			// Check if there are any overridden ports to be skipped

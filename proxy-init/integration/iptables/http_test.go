@@ -210,6 +210,31 @@ func TestPodWithSomeSubnetsIgnored(t *testing.T) {
 	})
 }
 
+func TestPodWithSomeSubnetsOutboundIgnored(t *testing.T) {
+	t.Parallel()
+
+	podIP := os.Getenv("POD_IGNORES_SUBNETS_OUTBOUND_IP")
+	if podIP == "" {
+		t.Skipf("POD_IGNORES_SUBNETS_OUTBOUND_IP is not set")
+	}
+
+	t.Run("connecting to a not-a-proxy-container should bypass proxy container", func(t *testing.T) {
+		rsp := expectSuccessfulGetRequest(t, makeURL(podIP, notTheProxyContainerPort))
+		expected := fmt.Sprintf("pod-ignores-subnets-outbound:%s", notTheProxyContainerPort)
+		if !strings.Contains(rsp, expected) {
+			t.Fatalf("Expected response to be bypassed, expected %s but it was %s", expected, rsp)
+		}
+	})
+
+	t.Run("connecting directly to the proxy container pod should still work", func(t *testing.T) {
+		rsp := expectSuccessfulGetRequest(t, makeURL(podIP, proxyContainerPort))
+		expected := "proxy"
+		if !strings.Contains(rsp, expected) {
+			t.Fatalf("Expected response from the proxy container, expected %s but it was %s", expected, rsp)
+		}
+	})
+}
+
 // === Helpers ===
 
 func makeCallFromContainerToAnother(t *testing.T, viaHost, viaPort, targetHost, targetPort string) string {

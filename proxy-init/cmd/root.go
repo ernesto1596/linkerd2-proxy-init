@@ -15,40 +15,42 @@ import (
 
 // RootOptions provides the information that will be used to build a firewall configuration.
 type RootOptions struct {
-	IncomingProxyPort     int
-	OutgoingProxyPort     int
-	ProxyUserID           int
-	PortsToRedirect       []int
-	InboundPortsToIgnore  []string
-	OutboundPortsToIgnore []string
-	SubnetsToIgnore       []string
-	SimulateOnly          bool
-	NetNs                 string
-	UseWaitFlag           bool
-	TimeoutCloseWaitSecs  int
-	LogFormat             string
-	LogLevel              string
-	FirewallBinPath       string
-	FirewallSaveBinPath   string
+	IncomingProxyPort       int
+	OutgoingProxyPort       int
+	ProxyUserID             int
+	PortsToRedirect         []int
+	InboundPortsToIgnore    []string
+	OutboundPortsToIgnore   []string
+	SubnetsToIgnore         []string
+	SubnetsToIgnoreOutbound []string
+	SimulateOnly            bool
+	NetNs                   string
+	UseWaitFlag             bool
+	TimeoutCloseWaitSecs    int
+	LogFormat               string
+	LogLevel                string
+	FirewallBinPath         string
+	FirewallSaveBinPath     string
 }
 
 func newRootOptions() *RootOptions {
 	return &RootOptions{
-		IncomingProxyPort:     -1,
-		OutgoingProxyPort:     -1,
-		ProxyUserID:           -1,
-		PortsToRedirect:       make([]int, 0),
-		InboundPortsToIgnore:  make([]string, 0),
-		OutboundPortsToIgnore: make([]string, 0),
-		SubnetsToIgnore:       make([]string, 0),
-		SimulateOnly:          false,
-		NetNs:                 "",
-		UseWaitFlag:           false,
-		TimeoutCloseWaitSecs:  0,
-		LogFormat:             "plain",
-		LogLevel:              "info",
-		FirewallBinPath:       "iptables",
-		FirewallSaveBinPath:   "iptables-save",
+		IncomingProxyPort:       -1,
+		OutgoingProxyPort:       -1,
+		ProxyUserID:             -1,
+		PortsToRedirect:         make([]int, 0),
+		InboundPortsToIgnore:    make([]string, 0),
+		OutboundPortsToIgnore:   make([]string, 0),
+		SubnetsToIgnore:         make([]string, 0),
+		SubnetsToIgnoreOutbound: make([]string, 0),
+		SimulateOnly:            false,
+		NetNs:                   "",
+		UseWaitFlag:             false,
+		TimeoutCloseWaitSecs:    0,
+		LogFormat:               "plain",
+		LogLevel:                "info",
+		FirewallBinPath:         "iptables",
+		FirewallSaveBinPath:     "iptables-save",
 	}
 }
 
@@ -95,6 +97,7 @@ func NewRootCmd() *cobra.Command {
 	cmd.PersistentFlags().StringSliceVar(&options.InboundPortsToIgnore, "inbound-ports-to-ignore", options.InboundPortsToIgnore, "Inbound ports and/or port ranges (inclusive) to ignore and not redirect to proxy. This has higher precedence than any other parameters.")
 	cmd.PersistentFlags().StringSliceVar(&options.OutboundPortsToIgnore, "outbound-ports-to-ignore", options.OutboundPortsToIgnore, "Outbound ports and/or port ranges (inclusive) to ignore and not redirect to proxy. This has higher precedence than any other parameters.")
 	cmd.PersistentFlags().StringSliceVar(&options.SubnetsToIgnore, "subnets-to-ignore", options.SubnetsToIgnore, "Subnets to ignore and not redirect to proxy. This has higher precedence than any other parameters.")
+	cmd.PersistentFlags().StringSliceVar(&options.SubnetsToIgnoreOutbound, "subnets-to-ignore-outbound", options.SubnetsToIgnoreOutbound, "Subnets to ignore outbound and not redirect by proxy. This has higher precedence than any other parameters.")
 	cmd.PersistentFlags().BoolVar(&options.SimulateOnly, "simulate", options.SimulateOnly, "Don't execute any command, just print what would be executed")
 	cmd.PersistentFlags().StringVar(&options.NetNs, "netns", options.NetNs, "Optional network namespace in which to run the iptables commands")
 	cmd.PersistentFlags().BoolVarP(&options.UseWaitFlag, "use-wait-flag", "w", options.UseWaitFlag, "Appends the \"-w\" flag to the iptables commands")
@@ -127,19 +130,31 @@ func BuildFirewallConfiguration(options *RootOptions) (*iptables.FirewallConfigu
 		sanitizedSubnets = append(sanitizedSubnets, subnet)
 	}
 
+	sanitizedSubnetsOutbound := []string{}
+	for _, subnet := range options.SubnetsToIgnoreOutbound {
+		subnet := strings.TrimSpace(subnet)
+		_, _, err := net.ParseCIDR(subnet)
+		if err != nil {
+			return nil, fmt.Errorf("%s is not a valid CIDR address", subnet)
+		}
+
+		sanitizedSubnetsOutbound = append(sanitizedSubnetsOutbound, subnet)
+	}
+
 	firewallConfiguration := &iptables.FirewallConfiguration{
-		ProxyInboundPort:       options.IncomingProxyPort,
-		ProxyOutgoingPort:      options.OutgoingProxyPort,
-		ProxyUID:               options.ProxyUserID,
-		PortsToRedirectInbound: options.PortsToRedirect,
-		InboundPortsToIgnore:   options.InboundPortsToIgnore,
-		OutboundPortsToIgnore:  options.OutboundPortsToIgnore,
-		SubnetsToIgnore:        sanitizedSubnets,
-		SimulateOnly:           options.SimulateOnly,
-		NetNs:                  options.NetNs,
-		UseWaitFlag:            options.UseWaitFlag,
-		BinPath:                options.FirewallBinPath,
-		SaveBinPath:            options.FirewallSaveBinPath,
+		ProxyInboundPort:        options.IncomingProxyPort,
+		ProxyOutgoingPort:       options.OutgoingProxyPort,
+		ProxyUID:                options.ProxyUserID,
+		PortsToRedirectInbound:  options.PortsToRedirect,
+		InboundPortsToIgnore:    options.InboundPortsToIgnore,
+		OutboundPortsToIgnore:   options.OutboundPortsToIgnore,
+		SubnetsToIgnore:         sanitizedSubnets,
+		SubnetsToIgnoreOutbound: sanitizedSubnetsOutbound,
+		SimulateOnly:            options.SimulateOnly,
+		NetNs:                   options.NetNs,
+		UseWaitFlag:             options.UseWaitFlag,
+		BinPath:                 options.FirewallBinPath,
+		SaveBinPath:             options.FirewallSaveBinPath,
 	}
 
 	if len(options.PortsToRedirect) > 0 {
